@@ -1,0 +1,154 @@
+================================================================================
+PRACTICAL 2: Develop a Microservice using ASP.NET Core with a RESTful API
+================================================================================
+
+AIM:
+To develop a microservice using ASP.NET Core Web API with a RESTful API to expose and manage application data using Entity Framework Core and SQL Server.
+
+THEORY:
+Microservices architecture structures an application as a collection of loosely coupled, independently deployable services. A RESTful API uses standard HTTP methods (GET, POST, PUT, DELETE) to manage data. In this practical, we create an independent "USER" microservice with its own internal database.
+
+WORKING STEPS:
+
+1. Create Project:
+Create a new ASP.NET Core Web API project named USER. Set Framework to .NET 6.0, Auth to None. Delete default WeatherForecast.cs and WeatherForecastController.cs to keep the project clean.
+
+2. Add API Controller:
+Right-click Controllers -> Add -> Controller -> API Controller with read/write actions. Name it UserController.cs.
+
+3. Create Entities:
+Create folders Database/Entities. Add a class User.cs:
+
+namespace USER.Database.Entities
+{
+    public class User
+    {
+        public int UserId { get; set; }
+        public string? Name { get; set; }
+        public string? Address { get; set; }
+        public int Contact { get; set; }
+    }
+}
+
+4. Install NuGet Packages:
+Right-click Dependencies -> Manage NuGet Packages. Install:
+- Microsoft.EntityFrameworkCore
+- Microsoft.EntityFrameworkCore.Tools
+- Microsoft.EntityFrameworkCore.SqlServer
+
+5. Create Database Context:
+Add class DatabaseContext.cs in the Database folder.
+
+using Microsoft.EntityFrameworkCore;
+using USER.Database.Entities;
+
+namespace USER.Database
+{
+    public class DatabaseContext : DbContext
+    {
+        public DbSet<User> Users { get; set; }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder.UseSqlServer(@"Data Source=(localdb)\MSSQLLocalDB;Initial Catalog=Database;Integrated Security=True;Connect Timeout=30;Encrypt=False;Trust Server Certificate=False;Application Intent=ReadWrite;Multi Subnet Failover=False");
+        }
+    }
+}
+
+6. Create Table:
+Go to View -> SQL Server Object Explorer. Right-click Databases -> Add New Database (Name: Database). Expand it, right-click Tables -> Add New Table. Add columns: UserId (PK, int), Name (nvarchar), Address (nvarchar), Contact (int). Update Database.
+
+7. Run Migrations:
+Go to Tools -> NuGet Package Manager -> Package Manager Console.
+
+add-migration initial
+update-database -verbose
+
+8. Implement RESTful API Methods:
+Open UserController.cs and replace with full CRUD logic:
+
+using Microsoft.AspNetCore.Mvc;
+using USER.Database;
+using USER.Database.Entities;
+
+namespace USER.Controllers
+{
+    [Route("api/[controller]")]
+    [ApiController]
+    public class UserController : ControllerBase
+    {
+        private readonly DatabaseContext _context = new DatabaseContext();
+
+        // GET: api/User
+        [HttpGet]
+        public IActionResult Get() { return Ok(_context.Users.ToList()); }
+
+        // GET: api/User/5
+        [HttpGet("{id}")]
+        public IActionResult Get(int id)
+        {
+            var user = _context.Users.Find(id);
+            if (user == null) return NotFound();
+            return Ok(user);
+        }
+
+        // POST: api/User
+        [HttpPost]
+        public IActionResult Post([FromBody] User model)
+        {
+            try
+            {
+                _context.Users.Add(model);
+                _context.SaveChanges();
+                return StatusCode(StatusCodes.Status201Created, model);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, ex.Message);
+            }
+        }
+
+        // PUT: api/User/5
+        [HttpPut("{id}")]
+        public IActionResult Put(int id, [FromBody] User model)
+        {
+            var entity = _context.Users.FirstOrDefault(e => e.UserId == id);
+            if (entity == null) return BadRequest("User not found.");
+            
+            entity.Name = model.Name;
+            entity.Address = model.Address;
+            entity.Contact = model.Contact;
+            _context.SaveChanges();
+            return Ok();
+        }
+
+        // DELETE: api/User/5
+        [HttpDelete("{id}")]
+        public IActionResult Delete(int id)
+        {
+            var entity = _context.Users.FirstOrDefault(e => e.UserId == id);
+            if (entity == null) return NotFound();
+            
+            _context.Users.Remove(entity);
+            _context.SaveChanges();
+            return NoContent();
+        }
+    }
+}
+
+9. Run and Test:
+Press F5 to run. The browser opens Swagger UI. Test the GET, POST, PUT, DELETE endpoints. You can also use Postman with the URL https://localhost:7286/api/User.
+
+COMMON PROBLEMS & SOLUTIONS:
+
+Problem 1: "No DbContext was found in assembly" error during migration.
+- Solution: Ensure your DatabaseContext.cs file is in the correct namespace and inherits from DbContext. Also, make sure you have the Microsoft.EntityFrameworkCore.Tools package installed.
+
+Problem 2: "Cannot connect to SQL Server" or "Login failed" error.
+- Solution: Check your connection string in DatabaseContext.cs. Ensure the Data Source matches your local SQL Server instance (e.g., (localdb)\MSSQLLocalDB or .\SQLEXPRESS).
+
+Problem 3: Database already exists error.
+- Solution: In SQL Server Object Explorer, delete the existing Database manually, then run update-database again.
+
+OUTPUT:
+The application runs as an independent microservice. Swagger and Postman successfully perform CRUD operations on the User data, returning JSON responses.
